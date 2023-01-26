@@ -3,16 +3,11 @@ import json, os, subprocess, tkinter as tk
 from config import config
 from scroll import ScrolledFrame
 
-############
+CP_BTN_WIDTH = 3 if os.name == 'posix' else 5
 
-if os.name == 'posix':
-    CP_BTN_WIDTH = 3
-else:
-    CP_BTN_WIDTH = 5
+############
 
 device = 'USB Uno MIDI Interface MIDI'
-
-############
 
 def send_command(cc, value):
     subprocess.run(['sendmidi', 'dev', device, 'ch', '1', 'cc', str(cc), str(value)])
@@ -37,13 +32,16 @@ class LoadingZone(tk.Frame):
         
         idx = self.select.get()
         if idx == -1:
+            print('NOPE.')
             return
         
-        print(f'SAVE: {self.which} {idx}')
+        print(f'SAVE: {self.which} #{idx}')
+        print(f'FILE: {self.dpath}')
         
         self.data[str(idx)] = {'descr': '', 'values': {}}
         self.data[str(idx)]['descr'] = self.descrs[idx].get()
         for name in config['cc'][self.which]:
+            print(f'SAVE: {name} - {value}')
             self.data[str(idx)]['values'][name] = variables[name].get()
 
         with open(self.dpath, 'w') as fp:
@@ -57,22 +55,25 @@ class LoadingZone(tk.Frame):
         
         idx = self.select.get()
         if idx == -1:
+            print('NOPE.')
             return
+        
+        print(f'LOAD: {self.which} #{idx}')
+        print(f'FILE: {self.dpath}')
         
         with open(self.dpath, 'r') as fp:
             data = json.load(fp)
             
         if not str(idx) in self.data:
-            print(f'FLOP: {idx}')
+            print(f'  ...FLOP!')
             return
-        
-        print(f'LOAD: {idx}')
         
         for name, value in self.data[str(idx)]['values'].items():
             try:
                 variables[name].set(value)
+                print(f'LOAD: {name} - {value}')
             except:
-                print(f'WHAT: {name} ({value})')
+                print(f'WHAT: {name} - {value}')
         
         if self.which == 'amp':
             value = self.data[str(idx)]['values']['mic']
@@ -172,12 +173,21 @@ class LoadingZone(tk.Frame):
 
 class ControlPanel(tk.Frame):
     
+    exceptions = [
+        'mod_param1_a',
+        'mod_param1_b',
+        'del_param1_a',
+        'del_param1_b'
+    ]
+    
     def up(self, name):
-        variables[name].set(min(127, variables[name].get() + delta.get()))
+        inc = 1 if name in ControlPanel.exceptions else delta.get()
+        variables[name].set(min(127, variables[name].get() + inc))
         send_var(self.which, name)
         
     def down(self, name):
-        variables[name].set(max(0, variables[name].get() - delta.get()))
+        inc = 1 if name in ControlPanel.exceptions else delta.get()
+        variables[name].set(max(0, variables[name].get() - inc))
         send_var(self.which, name)
             
     def make(self, which, var_names, disp_names=None):
@@ -247,6 +257,8 @@ var_rev_cls = tk.IntVar()
 var_rev_mod = tk.IntVar()
 
 ###  MAIN
+
+# why the fuck is the alignment perfect on windows, but not on linux?
 
 scrolled_frame = ScrolledFrame(root)
 scrolled_frame.pack(expand=True, fill='both')
@@ -336,12 +348,6 @@ for gdx, (grp_name, group) in enumerate(config['amp']['cab'].items()):
 ############
 # MIC SELECT
 
-radio = tk.Radiobutton(mic_choose, text='no mic', variable=var_mic_mod, value=0, command=lambda: send_var('amp', 'cab'))
-radio.grid(row=0, column=0, padx=6, pady=6)
-
-panel = tk.Frame(mic_choose)
-panel.grid(row=0, column=1, padx=6, pady=6)
-
 def on_mic_select():
     if var_mic_mod.get():
         mic_model = 2 * var_mic_mod.get() - 1 + var_mic_pos.get()
@@ -349,7 +355,13 @@ def on_mic_select():
         mic_model = 0
     variables['mic'].set(mic_model)
     send_var('amp', 'mic')
-        
+
+radio = tk.Radiobutton(mic_choose, text='no mic', variable=var_mic_mod, value=0, command=on_mic_select)
+radio.grid(row=0, column=0, padx=6, pady=6)
+
+panel = tk.Frame(mic_choose)
+panel.grid(row=0, column=1, padx=6, pady=6)
+
 pos_names = ['on axis', 'off axis']
 row = tk.Frame(panel)
 for value, name in enumerate(pos_names):
@@ -359,8 +371,7 @@ row.pack(padx=6, pady=(6, 0))
 mic_names = config['amp']['mic']
 row = tk.Frame(panel)
 for value, name in enumerate(mic_names):
-    value = value + 1
-    tk.Radiobutton(row, text=name, variable=var_mic_mod, value=value, command=on_mic_select).pack(side='left')
+    tk.Radiobutton(row, text=name, variable=var_mic_mod, value=value+1, command=on_mic_select).pack(side='left')
 row.pack(padx=6, pady=(3,6))
 
 ############    
@@ -484,7 +495,7 @@ on_type_select()
 
 if __name__ == '__main__':
     
-    # only send midi from laptop
+    # only send midi from linux
     if os.name == 'posix':
         send_allowed = True
         

@@ -24,12 +24,19 @@ try:
     while True:
         buff += sys.stdin.read(1)
         if buff.endswith('\n'):
-            line  =  buff[:-1]
-            items  = line.split()
-            new    = tr_dict.get(items[3], items[3])
-            val    = items[4]
-            now    = dt.strftime(dt.now(), '%H:%M:%S')
-            print(f'{now}   {new:<13} {val}')
+            line = buff[:-1]
+            tnow = dt.now()
+            date = dt.strftime(tnow, '%b %d')
+            time = dt.strftime(tnow, '%H:%M:%S')
+            now  = date.lower() + ' ' + time
+            try:
+                items  = line.split()
+                new    = tr_dict.get(items[3], items[3])
+                val    = items[4]    
+                print(f'{now}   {new:<13} {val}')
+            except Exception as e:
+                print(e)
+                print(f'{now}   {line}')
             buff = ''
 except KeyboardInterrupt:
     sys.stdout.flush()
